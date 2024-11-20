@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meme-Ingester</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        h1 {
+            margin-bottom: 40px;
+        }
+        #link-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 400px;
+        }
+        #url-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        #submit-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #message {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Meme-Ingester</h1>
+    <form id="link-form">
+        <input type="url" id="url-input" placeholder="Paste meme link here" required maxlength="2048">
+        <button type="submit" id="submit-btn">Submit</button>
+    </form>
+    <div id="message" aria-live="polite"></div>
+
+    <script>
+        const MAX_URL_LENGTH = 2048;
+        const form = document.getElementById('link-form');
+        const urlInput = document.getElementById('url-input');
+        const messageDiv = document.getElementById('message');
+
+        async function checkDuplicate(url) {
+            const response = await fetch(`/api/check-duplicate?url=${encodeURIComponent(url)}`);
+            const data = await response.json();
+            return data.isDuplicate;
+        }
+
+        async function submitLink(url) {
+            const response = await fetch('/api/submit-link', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ url }),
+            });
+            return await response.json();
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = urlInput.value;
+            
+            if (url.length > MAX_URL_LENGTH) {
+                messageDiv.textContent = `URL is too long. Maximum length is ${MAX_URL_LENGTH} characters.`;
+                messageDiv.style.color = 'red';
+                return;
+            }
+
+            try {
+                const isDuplicate = await checkDuplicate(url);
+                if (isDuplicate) {
+                    messageDiv.textContent = 'This link has already been ingested.';
+                    messageDiv.style.color = 'orange';
+                    return;
+                }
+
+                const result = await submitLink(url);
+                
+                if (result.success) {
+                    messageDiv.textContent = 'Link saved successfully!';
+                    messageDiv.style.color = 'green';
+                    urlInput.value = '';
+                } else {
+                    messageDiv.textContent = result.error || 'Error saving link';
+                    messageDiv.style.color = 'red';
+                }
+            } catch (error) {
+                messageDiv.textContent = 'Error submitting link';
+                messageDiv.style.color = 'red';
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
