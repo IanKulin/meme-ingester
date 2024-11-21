@@ -7,7 +7,8 @@ import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
 import {
-  dbInitialiseDatabase,
+  dbInitialise,
+  dbClose,
   dbGetRecordsByHash,
   dbSaveLink,
   dbGetNewRecords,
@@ -44,7 +45,7 @@ app.use(limiter);
 const sessionTokens = new Map();
 
 // Initialize database
-dbInitialiseDatabase();
+dbInitialise();
 
 // Helper function to process URL
 function processUrl(url) {
@@ -183,6 +184,20 @@ setInterval(() => {
     }
   }
 }, 3600000);
+
+// Graceful shutdown
+process.on("SIGINT", async () => {
+  console.log("Received SIGINT. Shutting down gracefully...");
+  // Close the database connection
+  try {
+    await dbClose();
+    console.log("Server closed successfully.");
+  } catch (err) {
+    console.error("Error during shutdown:", err);
+  }
+  // Exit the process
+  process.exit(0);
+});
 
 // Start the server
 app.listen(port, () => {

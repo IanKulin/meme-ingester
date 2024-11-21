@@ -3,7 +3,7 @@ import { open } from "sqlite";
 
 let db;
 
-async function dbInitialiseDatabase() {
+async function dbInitialise() {
   db = await open({
     filename: "data/meme_links.db",
     driver: sqlite3.Database,
@@ -21,6 +21,13 @@ async function dbInitialiseDatabase() {
   // Create indexes
   await db.run(`CREATE INDEX IF NOT EXISTS idx_hash ON links (hash)`);
   await db.run(`CREATE INDEX IF NOT EXISTS idx_flag ON links (flag)`);
+}
+
+async function dbClose() {
+  if (db) {
+    await db.close();
+    console.log("Database connection closed.");
+  }
 }
 
 async function dbGetRecordsByHash(hash) {
@@ -54,7 +61,8 @@ async function dbMarkRecordComplete(id) {
 }
 
 export {
-  dbInitialiseDatabase,
+  dbInitialise,
+  dbClose,
   dbGetRecordsByHash,
   dbSaveLink,
   dbGetNewRecords,
