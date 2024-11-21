@@ -41,7 +41,7 @@ const sessionTokens = new Map();
 let db;
 (async () => {
   db = await open({
-    filename: "meme_links.db",
+    filename: "data/meme_links.db",
     driver: sqlite3.Database,
   });
 
