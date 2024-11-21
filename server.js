@@ -1,6 +1,4 @@
 import express from "express";
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
 import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -8,6 +6,14 @@ import { URL } from "url";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
+import {
+  dbInitialiseDatabase,
+  dbGetRecordsByHash,
+  dbSaveLink,
+  dbGetNewRecords,
+  dbGetRecordById,
+  dbMarkRecordComplete,
+} from "./db.js";
 
 dotenv.config();
 
@@ -37,27 +43,8 @@ app.use(limiter);
 // Session token for check-duplicate
 const sessionTokens = new Map();
 
-// Database setup
-let db;
-(async () => {
-  db = await open({
-    filename: "data/meme_links.db",
-    driver: sqlite3.Database,
-  });
-
-  // Create table if not exists
-  await db.run(`CREATE TABLE IF NOT EXISTS links (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    url TEXT NOT NULL,
-    datetime TEXT NOT NULL,
-    flag CHAR(1) NOT NULL,
-    hash TEXT NOT NULL UNIQUE
-  )`);
-
-  // Create indexes
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_hash ON links (hash)`);
-  await db.run(`CREATE INDEX IF NOT EXISTS idx_flag ON links (flag)`);
-})();
+// Initialize database
+dbInitialiseDatabase();
 
 // Helper function to process URL
 function processUrl(url) {
@@ -108,7 +95,7 @@ app.get("/api/check-duplicate", checkSessionToken, async (req, res) => {
   try {
     const processedUrl = processUrl(url);
     const hash = crypto.createHash("sha256").update(processedUrl).digest("hex");
-    const result = await db.get("SELECT * FROM links WHERE hash = ?", hash);
+    const result = await dbGetRecordsByHash(hash);
     res.json({ isDuplicate: !!result });
   } catch (error) {
     console.error("Error checking for duplicate:", error);
@@ -135,10 +122,7 @@ app.post("/api/submit-link", checkSessionToken, async (req, res) => {
   const flag = "N";
   const hash = crypto.createHash("sha256").update(url).digest("hex");
   try {
-    await db.run(
-      "INSERT INTO links (url, datetime, flag, hash) VALUES (?, ?, ?, ?)",
-      [url, datetime, flag, hash]
-    );
+    await dbSaveLink(url, datetime, flag, hash);
     res.json({ success: true, message: "Link saved successfully" });
   } catch (error) {
     if (error.code === "SQLITE_CONSTRAINT") {
@@ -152,10 +136,7 @@ app.post("/api/submit-link", checkSessionToken, async (req, res) => {
 
 app.get("/api/new-records", checkApiKey, async (req, res) => {
   try {
-    const records = await db.all(
-      "SELECT id, url, datetime, hash FROM links WHERE flag = ?",
-      "N"
-    );
+    const records = await dbGetNewRecords();
     res.json(records);
   } catch (error) {
     console.error("Error fetching new records:", error);
@@ -171,7 +152,7 @@ app.post("/api/mark-complete", checkApiKey, async (req, res) => {
   }
 
   try {
-    const record = await db.get("SELECT * FROM links WHERE id = ?", id);
+    const record = await dbGetRecordById(id);
     if (!record) {
       return res.status(404).json({ error: "Record not found" });
     }
@@ -181,10 +162,7 @@ app.post("/api/mark-complete", checkApiKey, async (req, res) => {
     if (record.flag !== "N") {
       return res.status(400).json({ error: "Record is not new" });
     }
-    const result = await db.run(
-      "UPDATE links SET flag = ?, url = ? WHERE id = ?",
-      ["C", "", id]
-    );
+    const result = await dbMarkRecordComplete(id);
     if (result.changes === 0) {
       return res.status(500).json({ error: "Failed to update record" });
     }
