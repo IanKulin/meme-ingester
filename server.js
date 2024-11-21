@@ -1,8 +1,7 @@
 import express from "express";
 import crypto from "crypto";
 import path from "path";
-import { fileURLToPath } from "url";
-import { URL } from "url";
+import { fileURLToPath, URL } from "url";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
@@ -53,7 +52,9 @@ function processUrl(url) {
   return `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}`;
 }
 
-// Middleware to check API key
+// Middleware to check API key. The API key is set in the .env file and
+// used to protect the endpoints used by the companion app to access the
+// links
 function checkApiKey(req, res, next) {
   const providedApiKey = req.body.apiKey;
   if (!providedApiKey || providedApiKey !== API_KEY) {
@@ -62,7 +63,8 @@ function checkApiKey(req, res, next) {
   next();
 }
 
-// Middleware to check session token
+// Middleware to check session token. The session token is created at the
+// default route, and used to protect the endpoints used by the frontend
 function checkSessionToken(req, res, next) {
   const sessionToken = req.cookies.sessionToken;
   if (!sessionToken || !sessionTokens.has(sessionToken)) {
