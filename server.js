@@ -52,7 +52,7 @@ function processUrl(url) {
   return `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}`;
 }
 
-// Middleware to check API key. The API key is set in the .env file and
+// Middleware to check API key. The API key is an environment variable
 // used to protect the endpoints used by the companion app to access the
 // links
 function checkApiKey(req, res, next) {
