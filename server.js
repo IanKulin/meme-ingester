@@ -23,6 +23,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = 3000;
 const MAX_URL_LENGTH = 2048;
+const SESSION_EXPIRY = 3600000; // 1 hour
+const MAX_TOKENS = 1000; // Prevent memory bloat
 
 // API key from environment variable
 const API_KEY = process.env.API_KEY;
@@ -48,8 +50,55 @@ dbInitialise();
 
 // Helper function to process URL
 function processUrl(url) {
-  const parsedUrl = new URL(url);
-  return `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}`;
+  const freshUrl = url.trim();
+  // // Prevent potential XSS or injection
+  if (freshUrl.includes("<") || freshUrl.includes(">")) {
+    throw new Error("Invalid URL characters");
+  }
+  try {
+    const parsedUrl = new URL(freshUrl);
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      throw new Error("Invalid protocol");
+    }
+    return `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}`;
+  } catch (error) {
+    console.error("URL Processing Error:", error);
+    throw new Error("Invalid URL format");
+  }
+}
+
+// Helper function to cleanup session tokens, called by timer
+function cleanupSessionTokens() {
+  const now = Date.now();
+  let removedCount = 0;
+  // Remove expired tokens
+  for (const [token, timestamp] of sessionTokens.entries()) {
+    if (now - timestamp > SESSION_EXPIRY) {
+      sessionTokens.delete(token);
+      removedCount++;
+    }
+  }
+  // If too many tokens accumulate, remove the oldest ones
+  if (sessionTokens.size > MAX_TOKENS) {
+    const sortedTokens = [...sessionTokens.entries()].sort(
+      (a, b) => a[1] - b[1]
+    );
+    const tokensToRemove = sortedTokens.slice(
+      0,
+      sessionTokens.size - MAX_TOKENS
+    );
+    for (const [token] of tokensToRemove) {
+      sessionTokens.delete(token);
+    }
+  }
+}
+
+function handleServerError(res, error, defaultMessage = 'An unexpected error occurred') {
+  console.error(error);
+  res.status(error.status || 500).json({
+    error: error.message || defaultMessage,
+    timestamp: new Date().toISOString()
+  });
 }
 
 // Middleware to check API key. The API key is an environment variable
@@ -76,6 +125,8 @@ function checkSessionToken(req, res, next) {
 
 // Routes
 app.get("/", (req, res) => {
+  // include a session token, used later to protect the routes used
+  // by the form
   const sessionToken = crypto.randomBytes(32).toString("hex");
   sessionTokens.set(sessionToken, Date.now());
   res.cookie("sessionToken", sessionToken, {
@@ -131,8 +182,7 @@ app.post("/api/submit-link", checkSessionToken, async (req, res) => {
     if (error.code === "SQLITE_CONSTRAINT") {
       res.status(409).json({ error: "Duplicate link", isDuplicate: true });
     } else {
-      console.error("Error saving link:", error);
-      res.status(500).json({ error: "Error saving link" });
+      handleServerError(res, error, "Error saving link");
     }
   }
 });
@@ -142,8 +192,7 @@ app.get("/api/new-records", checkApiKey, async (req, res) => {
     const records = await dbGetNewRecords();
     res.json(records);
   } catch (error) {
-    console.error("Error fetching new records:", error);
-    res.status(500).json({ error: "Error fetching new records" });
+    handleServerError(res, error, "Error fetching new records");
   }
 });
 
@@ -171,34 +220,33 @@ app.post("/api/mark-complete", checkApiKey, async (req, res) => {
     }
     res.json({ success: true, message: "Record marked as complete" });
   } catch (error) {
-    console.error("Error marking record as complete:", error);
-    res.status(500).json({ error: "Error marking record as complete" });
+    handleServerError(res, error, "Error marking record as complete");
   }
 });
 
-// Clean up expired session tokens every hour
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, timestamp] of sessionTokens.entries()) {
-    if (now - timestamp > 3600000) {
-      // 1 hour
-      sessionTokens.delete(token);
-    }
-  }
-}, 3600000);
+// Clean up expired session tokens every half hour
+setInterval(cleanupSessionTokens, 1800000);
 
 // Graceful shutdown
 process.on("SIGINT", async () => {
-  console.log("Received SIGINT. Shutting down gracefully...");
-  // Close the database connection
+  console.log("Shutdown initiated");
   try {
     await dbClose();
-    console.log("Server closed successfully.");
+    // Close any open connections
+    if (app && app.server) {
+      await new Promise((resolve, reject) => {
+        app.server.close((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    }
+    console.log("Shutdown complete");
   } catch (err) {
     console.error("Error during shutdown:", err);
+  } finally {
+    process.exit(0);
   }
-  // Exit the process
-  process.exit(0);
 });
 
 // Start the server
