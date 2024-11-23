@@ -9,6 +9,7 @@ RUN npm install
 # Copy the rest of the application source code to the container
 COPY ./*.js .
 COPY ./readme.md .
+COPY ./LICENSE .
 COPY ./public/ ./public/
 
 EXPOSE 3000
