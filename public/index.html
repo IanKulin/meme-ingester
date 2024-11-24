@@ -31,11 +31,6 @@
         margin-bottom: 10px;
         font-size: 16px;
       }
-      #submit-btn {
-        padding: 10px 20px;
-        font-size: 16px;
-        cursor: pointer;
-      }
       #message {
         margin-top: 20px;
         font-weight: bold;
@@ -57,7 +52,6 @@
         required
         maxlength="2048"
       />
-      <button type="submit" id="submit-btn">Submit</button>
     </form>
     <div id="message" aria-live="polite"></div>
 
@@ -81,7 +75,7 @@
             messageDiv.style.display = "none";
             messageDiv.classList.remove("fade");
           }, 5000); // Hide after fade completes
-        }, 15000); // Start fading after 15 seconds
+        }, 3000); // Start fading after 3 seconds
       }
 
       async function checkDuplicate(url) {
@@ -103,9 +97,10 @@
         return await response.json();
       }
 
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const url = urlInput.value;
+      async function handleInput() {
+        const url = urlInput.value.trim();
+
+        if (url.length === 0) return;
 
         if (url.length > MAX_URL_LENGTH) {
           showMessage(
@@ -136,6 +131,16 @@
           showMessage("Error submitting link", "red");
           console.error("Error:", error);
         }
+      }
+
+      urlInput.addEventListener("paste", (e) => {
+        // Wait for the paste to complete
+        setTimeout(handleInput, 0);
+      });
+
+      // Prevent form submission
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
       });
     </script>
   </body>
