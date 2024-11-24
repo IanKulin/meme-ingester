@@ -31,6 +31,11 @@
         margin-bottom: 10px;
         font-size: 16px;
       }
+      #submit-btn {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+      }
       #message {
         margin-top: 20px;
         font-weight: bold;
@@ -52,6 +57,7 @@
         required
         maxlength="2048"
       />
+      <button type="submit" id="submit-btn">Submit</button>
     </form>
     <div id="message" aria-live="polite"></div>
 
@@ -59,6 +65,7 @@
       const MAX_URL_LENGTH = 2048;
       const form = document.getElementById("link-form");
       const urlInput = document.getElementById("url-input");
+      const submitBtn = document.getElementById("submit-btn");
       const messageDiv = document.getElementById("message");
       let fadeTimeout;
 
@@ -97,7 +104,7 @@
         return await response.json();
       }
 
-      async function handleInput() {
+      async function handleSubmit() {
         const url = urlInput.value.trim();
 
         if (url.length === 0) return;
@@ -133,15 +140,26 @@
         }
       }
 
+      // Submit on paste
       urlInput.addEventListener("paste", (e) => {
         // Wait for the paste to complete
-        setTimeout(handleInput, 0);
+        setTimeout(handleSubmit, 0);
       });
 
-      // Prevent form submission
+      // Submit on button click or Enter key
       form.addEventListener("submit", (e) => {
         e.preventDefault();
+        handleSubmit();
       });
+
+      // Disable submit button when input is empty
+      urlInput.addEventListener("input", () => {
+        submitBtn.disabled = urlInput.value.trim().length === 0;
+      });
+
+      // Initial button state
+      submitBtn.disabled = true;
     </script>
   </body>
 </html>
+
