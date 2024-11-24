@@ -60,6 +60,13 @@ async function dbMarkRecordComplete(id) {
   ]);
 }
 
+async function dbMarkRecordFailed(id) {
+  return await db.run("UPDATE links SET flag = ? WHERE id = ?", [
+    "F",
+    id,
+  ]);
+}
+
 export {
   dbInitialise,
   dbClose,
@@ -68,4 +75,5 @@ export {
   dbGetNewRecords,
   dbGetRecordById,
   dbMarkRecordComplete,
+  dbMarkRecordFailed,
 };

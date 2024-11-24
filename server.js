@@ -13,6 +13,7 @@ import {
   dbGetNewRecords,
   dbGetRecordById,
   dbMarkRecordComplete,
+  dbMarkRecordFailed,
 } from "./db.js";
 import {
   checkApiKey,
@@ -144,6 +145,34 @@ app.post("/api/mark-complete", checkApiKey, async (req, res) => {
     res.json({ success: true, message: "Record marked as complete" });
   } catch (error) {
     handleServerError(res, error, "Error marking record as complete");
+  }
+});
+
+app.post("/api/mark-failed", checkApiKey, async (req, res) => {
+  const { id, hash } = req.body;
+
+  if (!id || !hash) {
+    return res.status(400).json({ error: "Both id and hash are required" });
+  }
+
+  try {
+    const record = await dbGetRecordById(id);
+    if (!record) {
+      return res.status(404).json({ error: "Record not found" });
+    }
+    if (record.hash !== hash) {
+      return res.status(400).json({ error: "ID and hash do not match" });
+    }
+    if (record.flag !== "N") {
+      return res.status(400).json({ error: "Record is not new" });
+    }
+    const result = await dbMarkRecordFailed(id);
+    if (result.changes === 0) {
+      return res.status(500).json({ error: "Failed to update record" });
+    }
+    res.json({ success: true, message: "Record marked as failed" });
+  } catch (error) {
+    handleServerError(res, error, "Error marking record as failed");
   }
 });
 
