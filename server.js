@@ -110,7 +110,7 @@ app.post("/api/submit-link", checkSessionToken, async (req, res) => {
   }
 });
 
-app.get("/api/new-records", checkApiKey, async (req, res) => {
+app.post("/api/new-records", checkApiKey, async (req, res) => {
   try {
     const records = await dbGetNewRecords();
     res.json(records);
